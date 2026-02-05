@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 from .schemas import IncomingWebhook
 from . import security, agent, intelligence
+from typing import Optional
+from fastapi import Body, Header
 
 app = FastAPI()
 
@@ -15,15 +17,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.post("/api/v1/chat")
+@app.api_route("/api/v1/chat", methods=["GET", "POST"])
+@app.api_route("/api/v1/chat/", methods=["GET", "POST"])
 async def chat_endpoint(
-    webhook: Optional[IncomingWebhook] = None,
-    background_tasks: BackgroundTasks = None,
+    webhook: Optional[IncomingWebhook] = Body(None),
     x_api_key: Optional[str] = Header(None)
 ):
-    """
-    Main chat endpoint for the Honeypot.
-    """
+    # Hackathon tester / health probe (NO BODY)
     if webhook is None:
         return {
             "status": "success",
@@ -31,43 +31,34 @@ async def chat_endpoint(
             "scam_detected": False
         }
 
-    try:
-        user_text = webhook.message.text
-        session_id = webhook.sessionId
-        
-        # 1. Security Check (Scam Detection)
-        # Returns: is_scam, confidence, source (Model/Keyword)
-        is_scam, confidence, source = security.predict_scam(user_text)
-        
-        if is_scam:
-            # 2. Generate Agent Reply (Persona "Bob")
-            # Pass conversation history
-            reply_text = agent.generate_reply(webhook.conversationHistory, user_text)
-            
-            # 3. Extract Intelligence and Send Callback
-            # This function handles extraction and the GUVI callback internally
-            extracted_data = intelligence.extract_and_report(session_id, user_text, webhook.conversationHistory, is_scam)
-            
-            return {
-                "status": "success",
-                "reply": reply_text,
-                "scam_detected": True
-            }
-        else:
-            # Safe Message
-            return {
-                "status": "success",
-                "reply": "Message received.",
-                "scam_detected": False
-            }
-            
-    except Exception as e:
-        print(f"Error in chat_endpoint: {e}")
-        # Return a valid JSON even on error so the portal doesn't hang
+    # ---- Normal logic below ----
+    user_text = webhook.message.text
+    session_id = webhook.sessionId
+
+    is_scam, confidence, source = security.predict_scam(user_text)
+
+    if is_scam:
+        reply_text = agent.generate_reply(
+            webhook.conversationHistory,
+            user_text
+        )
+        intelligence.extract_and_report(
+            session_id,
+            user_text,
+            webhook.conversationHistory,
+            is_scam
+        )
         return {
-            "status": "error",
-            "reply": "System maintenance. Please try again later."
+            "status": "success",
+            "reply": reply_text,
+            "scam_detected": True
         }
+
+    return {
+        "status": "success",
+        "reply": "Message received.",
+        "scam_detected": False
+    }
 
 @app.get("/")
 def health_check():
