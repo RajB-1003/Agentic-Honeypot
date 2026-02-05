@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Header, Body, Request
+from fastapi import FastAPI, Header, Body
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 
@@ -19,17 +19,21 @@ app.add_middleware(
 )
 
 # -------------------------
-# API v1 ROOT  (THIS WAS MISSING)
+# API v1 ROOT (EXPLICIT)
 # -------------------------
-@app.api_route(
-    "/api/v1",
-    methods=["GET", "HEAD", "OPTIONS"]
-)
-@app.api_route(
-    "/api/v1/",
-    methods=["GET", "HEAD", "OPTIONS"]
-)
+@app.get("/api/v1")
+@app.head("/api/v1")
+@app.options("/api/v1")
 async def api_v1_root():
+    return {
+        "status": "success",
+        "message": "Honeypot API v1 reachable"
+    }
+
+@app.get("/api/v1/")
+@app.head("/api/v1/")
+@app.options("/api/v1/")
+async def api_v1_root_slash():
     return {
         "status": "success",
         "message": "Honeypot API v1 reachable"
@@ -38,19 +42,14 @@ async def api_v1_root():
 # -------------------------
 # CHAT ENDPOINT
 # -------------------------
-@app.api_route(
-    "/api/v1/chat",
-    methods=["GET", "POST", "OPTIONS", "HEAD"]
-)
-@app.api_route(
-    "/api/v1/chat/",
-    methods=["GET", "POST", "OPTIONS", "HEAD"]
-)
+@app.post("/api/v1/chat")
+@app.get("/api/v1/chat")
+@app.head("/api/v1/chat")
+@app.options("/api/v1/chat")
 async def chat_endpoint(
     webhook: Optional[IncomingWebhook] = Body(None),
     x_api_key: Optional[str] = Header(None)
 ):
-    # Hackathon probe / health check
     if webhook is None:
         return {
             "status": "success",
@@ -88,25 +87,21 @@ async def chat_endpoint(
         "scam_detected": False
     }
 
-# -------------------------
-# CATCH-ALL (KEEP LAST)
-# -------------------------
-@app.api_route(
-    "/api/v1/{path:path}",
-    methods=["GET", "POST", "OPTIONS", "HEAD"]
-)
-async def hackathon_catch_all(path: str, request: Request):
-    return {
-        "status": "success",
-        "message": "Honeypot API reachable",
-        "path": path,
-        "method": request.method
-    }
+@app.post("/api/v1/chat/")
+@app.get("/api/v1/chat/")
+@app.head("/api/v1/chat/")
+@app.options("/api/v1/chat/")
+async def chat_endpoint_slash(
+    webhook: Optional[IncomingWebhook] = Body(None),
+    x_api_key: Optional[str] = Header(None)
+):
+    return await chat_endpoint(webhook, x_api_key)
 
 # -------------------------
 # ROOT HEALTH CHECK
 # -------------------------
-@app.api_route("/", methods=["GET", "HEAD"])
+@app.get("/")
+@app.head("/")
 async def health_check():
     return {
         "status": "running",
