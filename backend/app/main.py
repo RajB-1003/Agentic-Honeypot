@@ -1,26 +1,25 @@
 from fastapi import FastAPI, BackgroundTasks, HTTPException, Header
-from fastapi.middleware.cors import CORSMiddleware  # 👈 1. IMPORT THIS
+from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 from .schemas import IncomingWebhook
 from . import security, agent, intelligence
 
 app = FastAPI()
 
-# 🛑 2. ADD THIS CORS BLOCK (CRITICAL FIX)
-# This allows the Hackathon Portal to connect to your Render API.
+# 🛑 ADD THIS BLOCK TO FIX THE "PROCESSING" HANG
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows ALL websites (including Guvi Portal)
+    allow_origins=["*"],  # Allows Hackathon Portal to talk to API
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all HTTP methods (POST, GET, etc.)
-    allow_headers=["*"],  # Allows all headers (including x-api-key)
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 @app.post("/api/v1/chat")
 async def chat_endpoint(
     webhook: IncomingWebhook, 
     background_tasks: BackgroundTasks,
-    x_api_key: Optional[str] = Header(None) # 👈 3. OPTIONAL: Handle the API Key header safely
+    x_api_key: Optional[str] = Header(None)
 ):
     """
     Main chat endpoint for the Honeypot.
@@ -30,25 +29,17 @@ async def chat_endpoint(
         session_id = webhook.sessionId
         
         # 1. Security Check (Scam Detection)
-        is_scam, confidence = security.predict_scam(user_text)
+        # Returns: is_scam, confidence, source (Model/Keyword)
+        is_scam, confidence, source = security.predict_scam(user_text)
         
         if is_scam:
             # 2. Generate Agent Reply (Persona "Bob")
             # Pass conversation history
             reply_text = agent.generate_reply(webhook.conversationHistory, user_text)
             
-            # 3. Extract Intelligence and Send Callback (Background Task)
-            extracted_data = intelligence.extract_intelligence(user_text)
-            
-            # We assume msg_count is length of history + 1. 
-            msg_count = len(webhook.conversationHistory) + 1
-            
-            background_tasks.add_task(
-                intelligence.send_guvi_callback, 
-                session_id, 
-                extracted_data, 
-                msg_count
-            )
+            # 3. Extract Intelligence and Send Callback
+            # This function handles extraction and the GUVI callback internally
+            extracted_data = intelligence.extract_and_report(session_id, user_text, webhook.conversationHistory, is_scam)
             
             return {
                 "status": "success",
@@ -64,9 +55,12 @@ async def chat_endpoint(
             }
             
     except Exception as e:
-        # Log error
         print(f"Error in chat_endpoint: {e}")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+        # Return a valid JSON even on error so the portal doesn't hang
+        return {
+            "status": "error",
+            "reply": "System maintenance. Please try again later."
+        }
 
 @app.get("/")
 def health_check():

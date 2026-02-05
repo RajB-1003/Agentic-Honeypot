@@ -44,7 +44,7 @@ def predict_scam(text: str):
             # Predict
             prob = classifier.predict_proba(vector)[0][1] # Probability of class 1 (Scam)
             is_scam = prob > 0.5
-            return is_scam, float(prob)
+            return is_scam, float(prob), "ML"
     except Exception as e:
         print(f"Security: Prediction error: {e}")
         pass
@@ -53,6 +53,6 @@ def predict_scam(text: str):
     text_lower = text.lower()
     for kw in keywords:
         if kw in text_lower:
-            return True, 1.0
+            return True, 1.0, "Keyword"
             
-    return False, 0.0
+    return False, 0.0, "None"

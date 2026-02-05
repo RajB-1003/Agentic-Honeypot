@@ -73,3 +73,30 @@ def send_guvi_callback(session_id: str, extracted_data: dict, msg_count: int = 1
     except Exception as e:
         # print(f"Callback failed: {e}")
         pass
+
+def extract_and_report(session_id: str, text: str, history: List[Any], is_scam: bool) -> Dict[str, Any]:
+    """
+    Wrapper function to extract intelligence and send report, as expected by main.py.
+    """
+    # 1. Extract
+    extracted_data = extract_intelligence(text)
+    
+    # 2. Estimate message count
+    msg_count = len(history) + 1
+    
+    # 3. Send Callback (Fire-and-forget)
+    # We call it synchronously here as it uses a short timeout, 
+    # OR we could rely on BackgroundTasks in main.py, but main.py calls this function 
+    # instead of scheduling the callback directly.
+    # The snippet implies this function handles the logic.
+    # To keep it non-blocking in main's context, main seems to rely on this being fast 
+    # OR main should have scheduled THIS function as a background task.
+    # Wait, the user's main.py says: 
+    # "intelligence.extract_and_report(..., is_scam)" 
+    # AND "intelligence.extract_and_report handles the callback logic internally".
+    # But main.py calls it *synchronously* inside the endpoint, NOT via background_tasks.add_task.
+    # This implies send_guvi_callback's short timeout is relied upon.
+    
+    send_guvi_callback(session_id, extracted_data, msg_count)
+    
+    return extracted_data
