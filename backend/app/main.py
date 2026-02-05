@@ -4,7 +4,7 @@ from typing import Optional
 from .schemas import IncomingWebhook
 from . import security, agent, intelligence
 from typing import Optional
-from fastapi import Body, Header
+from fastapi import Body, Header, Request
 
 app = FastAPI()
 
@@ -16,6 +16,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.api_route("/api/v1/{path:path}", methods=["GET", "POST", "OPTIONS"])
+async def hackathon_catch_all(path: str, request: Request):
+    return {
+        "status": "success",
+        "message": "Honeypot API reachable",
+        "path": path,
+        "method": request.method
+    }
 
 @app.api_route("/api/v1/chat", methods=["GET", "POST"])
 @app.api_route("/api/v1/chat/", methods=["GET", "POST"])
