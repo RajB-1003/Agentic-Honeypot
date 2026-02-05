@@ -1,38 +1,37 @@
-from fastapi import FastAPI, BackgroundTasks, HTTPException, Header
+from fastapi import FastAPI, Header, Body, Request
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
+
 from .schemas import IncomingWebhook
 from . import security, agent, intelligence
-from typing import Optional
-from fastapi import Body, Header, Request
 
 app = FastAPI()
 
-# 🛑 ADD THIS BLOCK TO FIX THE "PROCESSING" HANG
+# CORS (required for hackathon portal)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows Hackathon Portal to talk to API
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-@app.api_route("/api/v1/{path:path}", methods=["GET", "POST", "OPTIONS"])
-async def hackathon_catch_all(path: str, request: Request):
-    return {
-        "status": "success",
-        "message": "Honeypot API reachable",
-        "path": path,
-        "method": request.method
-    }
-
-@app.api_route("/api/v1/chat", methods=["GET", "POST"])
-@app.api_route("/api/v1/chat/", methods=["GET", "POST"])
+# -------------------------
+# CHAT ENDPOINT (MUST COME FIRST)
+# -------------------------
+@app.api_route(
+    "/api/v1/chat",
+    methods=["GET", "POST", "OPTIONS", "HEAD"]
+)
+@app.api_route(
+    "/api/v1/chat/",
+    methods=["GET", "POST", "OPTIONS", "HEAD"]
+)
 async def chat_endpoint(
     webhook: Optional[IncomingWebhook] = Body(None),
     x_api_key: Optional[str] = Header(None)
 ):
-    # Hackathon tester / health probe (NO BODY)
+    # Hackathon probe (no body / HEAD / GET)
     if webhook is None:
         return {
             "status": "success",
@@ -40,7 +39,6 @@ async def chat_endpoint(
             "scam_detected": False
         }
 
-    # ---- Normal logic below ----
     user_text = webhook.message.text
     session_id = webhook.sessionId
 
@@ -51,12 +49,14 @@ async def chat_endpoint(
             webhook.conversationHistory,
             user_text
         )
+
         intelligence.extract_and_report(
             session_id,
             user_text,
             webhook.conversationHistory,
             is_scam
         )
+
         return {
             "status": "success",
             "reply": reply_text,
@@ -69,6 +69,29 @@ async def chat_endpoint(
         "scam_detected": False
     }
 
-@app.get("/")
+
+# -------------------------
+# CATCH-ALL (MUST BE LAST)
+# -------------------------
+@app.api_route(
+    "/api/v1/{path:path}",
+    methods=["GET", "POST", "OPTIONS", "HEAD"]
+)
+async def hackathon_catch_all(path: str, request: Request):
+    return {
+        "status": "success",
+        "message": "Honeypot API reachable",
+        "path": path,
+        "method": request.method
+    }
+
+
+# -------------------------
+# ROOT HEALTH CHECK
+# -------------------------
+@app.api_route("/", methods=["GET", "HEAD"])
 def health_check():
-    return {"status": "running", "service": "Agentic Honeypot"}
+    return {
+        "status": "running",
+        "service": "Agentic Honeypot"
+    }
