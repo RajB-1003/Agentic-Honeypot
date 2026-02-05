@@ -1,11 +1,27 @@
-from fastapi import FastAPI, BackgroundTasks, HTTPException
+from fastapi import FastAPI, BackgroundTasks, HTTPException, Header
+from fastapi.middleware.cors import CORSMiddleware  # 👈 1. IMPORT THIS
+from typing import Optional
 from .schemas import IncomingWebhook
 from . import security, agent, intelligence
 
 app = FastAPI()
 
+# 🛑 2. ADD THIS CORS BLOCK (CRITICAL FIX)
+# This allows the Hackathon Portal to connect to your Render API.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows ALL websites (including Guvi Portal)
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all HTTP methods (POST, GET, etc.)
+    allow_headers=["*"],  # Allows all headers (including x-api-key)
+)
+
 @app.post("/api/v1/chat")
-async def chat_endpoint(webhook: IncomingWebhook, background_tasks: BackgroundTasks):
+async def chat_endpoint(
+    webhook: IncomingWebhook, 
+    background_tasks: BackgroundTasks,
+    x_api_key: Optional[str] = Header(None) # 👈 3. OPTIONAL: Handle the API Key header safely
+):
     """
     Main chat endpoint for the Honeypot.
     """
@@ -25,9 +41,6 @@ async def chat_endpoint(webhook: IncomingWebhook, background_tasks: BackgroundTa
             extracted_data = intelligence.extract_intelligence(user_text)
             
             # We assume msg_count is length of history + 1. 
-            # Or just pass 1 if tracking per message. 
-            # The prompt implies aggregations, but 'msg_count' isn't fully defined in schema 
-            # so we'll estimate or just pass a value.
             msg_count = len(webhook.conversationHistory) + 1
             
             background_tasks.add_task(
