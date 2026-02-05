@@ -17,13 +17,20 @@ app.add_middleware(
 
 @app.post("/api/v1/chat")
 async def chat_endpoint(
-    webhook: IncomingWebhook, 
-    background_tasks: BackgroundTasks,
+    webhook: Optional[IncomingWebhook] = None,
+    background_tasks: BackgroundTasks = None,
     x_api_key: Optional[str] = Header(None)
 ):
     """
     Main chat endpoint for the Honeypot.
     """
+    if webhook is None:
+        return {
+            "status": "success",
+            "message": "Honeypot API reachable",
+            "scam_detected": False
+        }
+
     try:
         user_text = webhook.message.text
         session_id = webhook.sessionId
