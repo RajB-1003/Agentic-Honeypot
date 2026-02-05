@@ -7,7 +7,9 @@ from . import security, agent, intelligence
 
 app = FastAPI()
 
-# CORS (required for hackathon portal)
+# -------------------------
+# CORS
+# -------------------------
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -17,7 +19,24 @@ app.add_middleware(
 )
 
 # -------------------------
-# CHAT ENDPOINT (MUST COME FIRST)
+# API v1 ROOT  (THIS WAS MISSING)
+# -------------------------
+@app.api_route(
+    "/api/v1",
+    methods=["GET", "HEAD", "OPTIONS"]
+)
+@app.api_route(
+    "/api/v1/",
+    methods=["GET", "HEAD", "OPTIONS"]
+)
+async def api_v1_root():
+    return {
+        "status": "success",
+        "message": "Honeypot API v1 reachable"
+    }
+
+# -------------------------
+# CHAT ENDPOINT
 # -------------------------
 @app.api_route(
     "/api/v1/chat",
@@ -31,7 +50,7 @@ async def chat_endpoint(
     webhook: Optional[IncomingWebhook] = Body(None),
     x_api_key: Optional[str] = Header(None)
 ):
-    # Hackathon probe (no body / HEAD / GET)
+    # Hackathon probe / health check
     if webhook is None:
         return {
             "status": "success",
@@ -69,9 +88,8 @@ async def chat_endpoint(
         "scam_detected": False
     }
 
-
 # -------------------------
-# CATCH-ALL (MUST BE LAST)
+# CATCH-ALL (KEEP LAST)
 # -------------------------
 @app.api_route(
     "/api/v1/{path:path}",
@@ -85,12 +103,11 @@ async def hackathon_catch_all(path: str, request: Request):
         "method": request.method
     }
 
-
 # -------------------------
 # ROOT HEALTH CHECK
 # -------------------------
 @app.api_route("/", methods=["GET", "HEAD"])
-def health_check():
+async def health_check():
     return {
         "status": "running",
         "service": "Agentic Honeypot"
